@@ -1,5 +1,6 @@
 package com.sbprojects.storm_shield.service;
 
+import com.sbprojects.storm_shield.exception.ExternalServiceException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -41,10 +42,12 @@ public class WeatherService { //Weather data provider
                 Map<String, Object> windData = (Map<String, Object>) response.get("wind");
                 return Double.parseDouble(windData.get("speed").toString()); //TODO: extend WeatherService to return a small WeatherSnapshot DTO
             }
-            //TODO: Handle an exception of weather payload response not having the wind attribute
+            //Handle payload lacking the wind attribute
+            throw new ExternalServiceException("Weather payload for " + city + " is missing wind attribute nodes.");
+
         } catch (Exception e) {
-            System.out.println("[WEATHER SERVICE ERROR] Failed to fetch data for " + city + ": " + e.getMessage()); //TODO: Improve exception handling
+            //Intercept any timeout/network drops and pass them to the global handler
+            throw new ExternalServiceException("Failed to pull live weather metrics from upstream API for city: " + city);
         }
-        return 0.0; //Fallback to safe default value if the network or API keys fail
     }
 }

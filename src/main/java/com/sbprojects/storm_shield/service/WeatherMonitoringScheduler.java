@@ -1,7 +1,9 @@
 package com.sbprojects.storm_shield.service;
 
+import com.sbprojects.storm_shield.event.SevereWeatherEvent;
 import com.sbprojects.storm_shield.model.FreightRoute;
 import com.sbprojects.storm_shield.repository.FreightRouteRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -12,11 +14,13 @@ public class WeatherMonitoringScheduler {
 
     private final FreightRouteRepository routeRepository;
     private final WeatherService weatherService;
+    private final ApplicationEventPublisher eventPublisher; //Inject the broadcaster
 
     //Constructor Injection: Spring passes our database tool and weather client automatically
-    public WeatherMonitoringScheduler(FreightRouteRepository routeRepository, WeatherService weatherService) {
+    public WeatherMonitoringScheduler(FreightRouteRepository routeRepository, WeatherService weatherService, ApplicationEventPublisher eventPublisher) {
         this.routeRepository = routeRepository;
         this.weatherService = weatherService;
+        this.eventPublisher = eventPublisher;
     }
 
     //The loop executes automatically every 60,000 milliseconds (1 minute)
@@ -32,10 +36,11 @@ public class WeatherMonitoringScheduler {
             System.out.println("Hub [" + route.getSourceCity() + "] Current Wind Speed: " + windSpeed + " mph");
 
             //Enterprise Risk Operational Parameter Check
-            if(windSpeed > 40.0)
-                System.out.println("[CRITICAL HAZARD DETECTED] Severe wind at " + route.getSourceCity() + "Hub! Threat Level: High.");
-                //TODO: replace the print statement with an automated event playbook dispatcher
-
+            if(windSpeed > 40.0) {
+                System.out.println("[HAZARD] Severe weather detected at " + route.getSourceCity() + ". Broadcasting event...");
+                //Publish the event asynchronously out to the platform listeners
+                eventPublisher.publishEvent(new SevereWeatherEvent(this, route.getSourceCity(), windSpeed));
+            }
         }
     }
 }

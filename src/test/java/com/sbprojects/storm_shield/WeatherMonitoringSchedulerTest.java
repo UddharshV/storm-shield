@@ -1,5 +1,6 @@
 package com.sbprojects.storm_shield;
 
+import com.sbprojects.storm_shield.event.SevereWeatherEvent;
 import com.sbprojects.storm_shield.model.FreightRoute;
 import com.sbprojects.storm_shield.repository.FreightRouteRepository;
 import com.sbprojects.storm_shield.service.WeatherMonitoringScheduler;
@@ -8,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.List;
 
@@ -18,6 +20,8 @@ public class WeatherMonitoringSchedulerTest {
 
     @Mock private FreightRouteRepository routeRepository;
     @Mock private WeatherService weatherService;
+    @Mock private ApplicationEventPublisher eventPublisher;
+
     @InjectMocks private WeatherMonitoringScheduler scheduler;
 
     @Test
@@ -39,5 +43,36 @@ public class WeatherMonitoringSchedulerTest {
         verify(weatherService, times(1)).getWindSpeed("Memphis");
         verify(weatherService, times(1)).getWindSpeed("Chicago");
     }
+    @Test
+    public void testMonitorHubWeather_PublishesEventOnHighWind(){
+        MockitoAnnotations.openMocks(this);
 
+        //1. Arrange
+        FreightRoute route = new FreightRoute("Memphis", "Dallas", "OPERATIONAL");
+        when(routeRepository.findAll()).thenReturn(List.of(route));
+        when(weatherService.getWindSpeed("Memphis")).thenReturn(52.0); //Breach threshold
+
+        //2.Act
+        scheduler.monitorHubWeather();
+
+        //3.Assert
+        //Verify the system broadcasted the event exactly once
+        verify(eventPublisher, times(1)).publishEvent(any(SevereWeatherEvent.class));
+    }
+    @Test
+    public void testMonitorHubWeather_PublishesNoEventOnLowWind(){
+        MockitoAnnotations.openMocks(this);
+
+        //1. Arrange
+        FreightRoute route = new FreightRoute("Memphis", "Dallas", "OPERATIONAL");
+        when(routeRepository.findAll()).thenReturn(List.of(route));
+        when(weatherService.getWindSpeed("Memphis")).thenReturn(12.0); //Below threshold
+
+        //2.Act
+        scheduler.monitorHubWeather();
+
+        //3.Assert
+        //Verify the system doesn't broadcast the event
+        verify(eventPublisher, times(0)).publishEvent(any(SevereWeatherEvent.class));
+    }
 }

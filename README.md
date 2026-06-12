@@ -1,54 +1,150 @@
-# StormShield: Weather-Triggered Operational Alerting System
+# StormShield
 
-StormShield is a proactive event-driven platform designed to monitor environmental hazards across shipping lanes and automatically execute operational response playbooks. This system mimics the core architecture of enterprise IT Service Management (ITSM) and automation platforms like ServiceNow.
+StormShield is a Spring Boot backend that monitors freight routes for severe weather and automatically updates route state when conditions become unsafe.
 
----
+It is built as an event-driven logistics alerting system: a scheduled monitor checks weather data, publishes events when a route is at risk, and listener components react by updating route status and preparing operational alerts.
 
-## 🏗️ Architecture & Core Concepts Learnt
+## Features
 
-### 0. Configuration Management & Asset Tracking (Data Layer)
-In enterprise IT operations, you cannot protect infrastructure if you do not know what assets exist. I implemented the foundational data blueprint representing a freight carrier's physical assets:
-* **The Domain Model (`FreightRoute`):** Represents shipping lanes connecting critical regional hubs. It tracks operational states using dynamic statuses (`OPERATIONAL`, `DELAYED`, `REROUTED`).
-* **The Abstraction Layer (`JpaRepository`):** Leveraged Spring Data JPA to decouple the business logic from raw database communication, eliminating brittle, manual SQL plumbing.
+- Track freight routes with statuses such as `OPERATIONAL`, `DELAYED`, and `REROUTED`
+- Poll weather data on a schedule
+- Publish severe weather events when thresholds are exceeded
+- React through independent listeners instead of tightly coupled service calls
+- Expose network analytics through `GET /api/routes/analytics`
+- Validate analytics logic with focused JUnit 5 and Mockito tests
 
-### 1. Live API Ingestion & Defensive Engineering
-To move from a static system to a living, reactive operational tool, I built a resilient live data ingestion pipeline:
-* **Decoupled HTTP Communication:** Implemented Spring Boot's modern `RestClient` using constructor injection. This prevents rigid code structures and allows the entire networking layer to be fully mockable for high-fidelity unit testing.
-* **Stable Configuration Management:** Extracted API parameters into centralized configuration properties (`weather.api.base-url`), establishing a stable architectural foundation if upstream providers update their endpoints or resource versions.
-* **Automated Polling Daemons:** Leveraged Spring's internal scheduling engine (`@EnableScheduling` and `@Scheduled`) to build a background worker thread that continuously monitors freight lanes without human intervention.
+## Architecture
 
-### 2. Enterprise Security & Credential Safeguards
-Following defensive security standards, all production variables and API tokens have been completely scrubbed from code tracking. The application relies on environmental abstraction layer placeholding (`${OPENWEATHER_API_KEY}`), feeding active credentials at runtime through untracked operating system environment variables (`.env` files barred via `.gitignore`).
+### Phase 0: Data layer
 
-### 3. Centralized Exception Sanitization
-Leaking internal system stack traces or downstream network connection drops into production logs or public API responses poses an operational security risk. I implemented a global exception interceptor framework using `@ControllerAdvice`:
-* Automatically catches application pipeline failures.
-* Logs raw, dirty stack details internally for reliability engineering review.
-* Translates the response into a clean, sanitized JSON object before presenting it to the outside world.
+- `FreightRoute` represents a shipping lane between logistics hubs
+- Spring Data JPA handles persistence through a repository interface
+- H2 is used for local development and fast testing
 
-### 4. Asynchronous Event-Driven Automation (ServiceNow Workflow Studio Engine)
-To replicate the core mechanics of platforms like **ServiceNow Flow Designer**, I eliminated tightly-coupled component dependencies in favor of an **Event-Driven Architecture (EDA)**:
-* **The Telemetry Trigger (`SevereWeatherEvent`):** Created a custom application event DTO that encapsulates real-time operational hazard data (impacted city hub and validated wind velocities) when system thresholds are breached.
-* **The Event Broadcaster (`ApplicationEventPublisher`):** Refactored the core background daemon to instantly broadcast hazard signals into the Spring application context, decoupling the tracking mechanisms from downstream response plays.
-* **Decoupled Playbook Listeners (`@EventListener`):** Built completely separate, asynchronous worker modules that execute independent mitigation procedures automatically upon event capture:
-    * **`RouteRerouterListener` (Automated ITSM Action):** Dynamically alters data state inside the H2 engine, updating matching route records from `OPERATIONAL` to `DELAYED` to maintain network asset integrity.
-    * **`DriverDispatchListener` (Automated Communication):** Generates sanitized, structured outbound notification payloads simulating a live transmission advisory for line-haul drivers in the hazardous zone.
+### Phase 1: Weather monitoring
 
----
+- A Spring `RestClient` fetches weather data from an external API
+- `@Scheduled` jobs poll route conditions in the background
+- The weather API base URL is externalized in configuration
 
-## 🛠️ Tech Stack Implemented
-* **Backend Framework:** Java / Spring Boot 3.x / Spring Web
-* **Data Access:** Spring Data JPA (Java Persistence API)
-* **Database Engine:** H2 In-Memory Database Engine
-* **Testing Frameworks:** JUnit 5 / Mockito (True dependency-mocked unit testing)
+### Phase 2: Event-driven automation
 
----
+When unsafe weather is detected, the application publishes a `SevereWeatherEvent`. Listener components react independently, which keeps the design modular and easy to extend.
 
-## 🚦 Verification & Test Suite Progress
-The application code enforces a strict Test-Driven process. By isolating dependencies (such as fluent client builders and database repositories) via Mockito stubs, the tests validate actual data-parsing logic and state-validation rules:
-* **`WeatherServiceTest`:** Verifies URL execution, base URL composition, payload map navigation (`wind.speed`), and proper error raising.
-* **`WeatherMonitoringSchedulerTest`:** Validates background control loop traversal and confirms the event broadcaster correctly launches when threshold rules fail.
-* **`RouteRerouterListenerTest`:** Assures that playbook action interceptors cleanly handle captured events and update matching database entity keys appropriately.
-* **Localized Database Controls:** Verified via H2 Web Console wrapper testing (`SELECT * FROM FREIGHT_ROUTE;`) that system state initializes correctly on startup.
+```text
+[Scheduled Monitor] --> [SevereWeatherEvent] --> [Event Publisher]
+                                                   |
+                              +--------------------+--------------------+
+                              |                                         |
+                              v                                         v
+                    [Route Status Listener]                 [Dispatch Listener]
+                    updates route to DELAYED               prepares alert message
+```
 
-**Current Sprint Status:** Phase 2 (Event-Driven Automation / ServiceNow Workflows) is complete. Ready to transition to Phase 3 (Control Center Analytics API & Final Deployment Pitch).
+### Phase 3: Control Center analytics
+
+Managers can request a live system snapshot through:
+
+```http
+GET /api/routes/analytics
+```
+
+Example response:
+
+```json
+{
+  "totalMonitoredRoutes": 4,
+  "activeWeatherDelays": 1,
+  "activeOperationalLanes": 3,
+  "networkAvailabilityPercentage": "75.0%",
+  "systemStatus": "HEALTHY"
+}
+```
+
+The endpoint calculates:
+
+- Total monitored routes
+- Active weather delays
+- Active operational lanes
+- Network availability percentage
+- Overall system status
+
+## Testing
+
+The analytics controller is tested with JUnit 5 and Mockito using direct unit tests instead of loading the full Spring context.
+
+Covered scenarios include:
+
+- Healthy network
+- Empty network
+- Degraded network
+- Exact 70.0% boundary behavior
+- Case-insensitive handling of `"DELAYED"`
+
+## Security and error handling
+
+- The OpenWeather API key is read from an environment variable, not hardcoded in source
+- A global exception handler keeps API errors clean and consistent
+- Sensitive configuration stays out of version control
+
+## Local setup
+
+### Requirements
+
+- Java 17+
+- Maven 3.9+
+
+### Set the API key
+
+```bash
+export OPENWEATHER_API_KEY="your_secret_api_token_here"
+```
+
+### Run tests
+
+```bash
+mvn clean test
+```
+
+### Run the application
+
+```bash
+mvn spring-boot:run
+```
+
+### H2 console
+
+When running locally, the H2 console is available at:
+
+```text
+http://localhost:8080/h2-console
+```
+
+Use:
+
+```text
+JDBC URL: jdbc:h2:mem:stormshielddb
+Username: sa
+Password: (blank)
+```
+
+## Tech stack
+
+- Java 17
+- Spring Boot
+- Spring Web
+- Spring Data JPA
+- Hibernate
+- H2 Database
+- JUnit 5
+- Mockito
+
+## Roadmap
+
+- Replace in-memory events with Kafka or ActiveMQ for durable messaging
+- Add outbound integration for ITSM platforms such as ServiceNow
+- Move from city-based checks to geospatial route monitoring with PostgreSQL and PostGIS
+
+## Author
+
+Built by Uddharsh Vasili as a backend systems engineering project focused on event-driven design, automation, and operational visibility.

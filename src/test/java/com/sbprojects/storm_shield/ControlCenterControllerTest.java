@@ -1,6 +1,7 @@
 package com.sbprojects.storm_shield;
 
 import com.sbprojects.storm_shield.controller.ControlCenterController;
+import com.sbprojects.storm_shield.dto.RouteStatusUpdateRequest;
 import com.sbprojects.storm_shield.model.FreightRoute;
 import com.sbprojects.storm_shield.repository.FreightRouteRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -8,11 +9,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 /**
@@ -147,5 +151,49 @@ public class ControlCenterControllerTest {
         assertEquals(2L, analytics.get("activeWeatherDelays"));     // both delayed/DELAYED counted
         assertEquals(1L, analytics.get("activeOperationalLanes"));
         verify(routeRepository, times(1)).findAll();
+    }
+    @Test
+    void updateRouteStatus_ExistingRoute_UpdatesStatusAndReturnsUpdatedEntity() {
+        // 1. Arrange
+        Long routeId = 42L;
+        FreightRoute existing = new FreightRoute("Memphis", "Dallas", "DELAYED");
+
+        when(routeRepository.findById(routeId)).thenReturn(Optional.of(existing));
+        when(routeRepository.save(existing)).thenReturn(existing);
+
+        RouteStatusUpdateRequest request = new RouteStatusUpdateRequest();
+        request.setStatus("OPERATIONAL");
+
+        // 2. Act
+        ResponseEntity<FreightRoute> response = controller.updateRouteStatus(routeId, request);
+
+        // 3. Assert: HTTP status and body
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        FreightRoute body = response.getBody();
+        assertNotNull(body);
+        assertEquals("OPERATIONAL", body.getStatus());
+
+        // 4. Assert: interactions with repository
+        verify(routeRepository, times(1)).findById(routeId);
+        verify(routeRepository, times(1)).save(existing);
+    }
+    @Test
+    void updateRouteStatus_NonExistingRoute_ReturnsNotFoundAndDoesNotSave() {
+        // 1. Arrange
+        Long missingId = 99L;
+        when(routeRepository.findById(missingId)).thenReturn(Optional.empty());
+
+        RouteStatusUpdateRequest request = new RouteStatusUpdateRequest();
+        request.setStatus("OPERATIONAL");
+
+        // 2. Act
+        ResponseEntity<FreightRoute> response = controller.updateRouteStatus(missingId, request);
+
+        // 3. Assert
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertNull(response.getBody());
+
+        verify(routeRepository, times(1)).findById(missingId);
+        verify(routeRepository, never()).save(any());
     }
 }

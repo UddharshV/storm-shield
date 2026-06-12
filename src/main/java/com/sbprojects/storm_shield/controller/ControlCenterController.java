@@ -1,14 +1,15 @@
 package com.sbprojects.storm_shield.controller;
 
+import com.sbprojects.storm_shield.dto.RouteStatusUpdateRequest;
 import com.sbprojects.storm_shield.model.FreightRoute;
 import com.sbprojects.storm_shield.repository.FreightRouteRepository;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/routes") //Structures all sub-routes under a safe route URI
@@ -17,7 +18,6 @@ public class ControlCenterController {
     private final FreightRouteRepository routeRepository;
 
     //Constructor Injection: Spring automatically provides the DB repository bean
-
 
     public ControlCenterController(FreightRouteRepository routeRepository) {
         this.routeRepository = routeRepository;
@@ -47,5 +47,27 @@ public class ControlCenterController {
         analytics.put("systemStatus", networkAvailabilityPercentage>70.0?"HEALTHY":"DEGRADED");
 
         return analytics;
+    }
+
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<FreightRoute> updateRouteStatus(
+            @PathVariable Long id,
+            @RequestBody RouteStatusUpdateRequest request
+    ) {
+        //1. Locate the existing asset lane record
+        Optional<FreightRoute> optionalRoute = routeRepository.findById(id);
+        if (optionalRoute.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        //2. Extract and mutate only the specific status field
+        FreightRoute route = optionalRoute.get();
+        route.setStatus(request.getStatus());
+
+        //3. Persist the state change back to the database
+        FreightRoute savedRoute = routeRepository.save(route);
+
+        //4. Return the updated resource entity
+        return ResponseEntity.ok(savedRoute);
     }
 }

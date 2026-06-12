@@ -4,6 +4,7 @@ import com.sbprojects.storm_shield.dto.CreateRouteRequest;
 import com.sbprojects.storm_shield.dto.RouteStatusUpdateRequest;
 import com.sbprojects.storm_shield.model.FreightRoute;
 import com.sbprojects.storm_shield.repository.FreightRouteRepository;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -52,7 +53,7 @@ public class ControlCenterController {
     }
 
     @PostMapping
-    public ResponseEntity<FreightRoute> createRoute(@RequestBody CreateRouteRequest request) {
+    public ResponseEntity<FreightRoute> createRoute(@Valid @RequestBody CreateRouteRequest request) {
         String status = request.getStatus();
         if (status == null || status.isBlank()) {
             status = "OPERATIONAL";
@@ -72,7 +73,7 @@ public class ControlCenterController {
     @PatchMapping("/{id}/status")
     public ResponseEntity<FreightRoute> updateRouteStatus(
             @PathVariable Long id,
-            @RequestBody RouteStatusUpdateRequest request
+            @Valid @RequestBody RouteStatusUpdateRequest request
     ) {
         //1. Locate the existing asset lane record
         Optional<FreightRoute> optionalRoute = routeRepository.findById(id);
@@ -93,11 +94,11 @@ public class ControlCenterController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteRoute(@PathVariable Long id) {
-        if (!routeRepository.existsById(id)) {
-            return ResponseEntity.notFound().build();
-        }
-
-        routeRepository.deleteById(id);
-        return ResponseEntity.noContent().build();
+        return routeRepository.findById(id)
+                .map(route -> {
+                    routeRepository.delete(route);
+                    return ResponseEntity.noContent().<Void>build();
+                })
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).<Void>build());
     }
 }

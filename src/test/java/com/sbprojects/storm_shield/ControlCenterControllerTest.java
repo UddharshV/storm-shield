@@ -253,7 +253,8 @@ public class ControlCenterControllerTest {
     void deleteRoute_ExistingRoute_DeletesAndReturnsNoContent() {
         // 1. Arrange
         Long routeId = 7L;
-        when(routeRepository.existsById(routeId)).thenReturn(true);
+        FreightRoute existing = new FreightRoute("Memphis", "Dallas", "OPERATIONAL");
+        when(routeRepository.findById(routeId)).thenReturn(Optional.of(existing));
 
         // 2. Act
         ResponseEntity<Void> response = controller.deleteRoute(routeId);
@@ -262,8 +263,8 @@ public class ControlCenterControllerTest {
         assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
         assertNull(response.getBody());
 
-        verify(routeRepository, times(1)).existsById(routeId);
-        verify(routeRepository, times(1)).deleteById(routeId);
+        verify(routeRepository, times(1)).findById(routeId);
+        verify(routeRepository, times(1)).delete(existing);
     }
 
     //deleteRoute missing ID → 404, no delete
@@ -271,7 +272,7 @@ public class ControlCenterControllerTest {
     void deleteRoute_NonExistingRoute_ReturnsNotFoundAndDoesNotDelete() {
         // 1. Arrange
         Long missingId = 90L;
-        when(routeRepository.existsById(missingId)).thenReturn(false);
+        when(routeRepository.findById(missingId)).thenReturn(Optional.empty());
 
         // 2. Act
         ResponseEntity<Void> response = controller.deleteRoute(missingId);
@@ -280,7 +281,7 @@ public class ControlCenterControllerTest {
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
         assertNull(response.getBody());
 
-        verify(routeRepository, times(1)).existsById(missingId);
-        verify(routeRepository, never()).deleteById(anyLong());
+        verify(routeRepository, times(1)).findById(missingId);
+        verify(routeRepository, never()).delete(any());
     }
 }

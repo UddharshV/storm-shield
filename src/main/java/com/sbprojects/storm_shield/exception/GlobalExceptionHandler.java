@@ -30,7 +30,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidationException(MethodArgumentNotValidException ex) {
         // Avoid ex.getMessage() because it can blow up when MethodParameter is null in tests
-        System.err.println("[INTERNAL LOG] - WARN: - VALIDATION ERROR on object: "
+        System.err.println("[INTERNAL LOG] - WARN: VALIDATION ERROR on object: "
                 + ex.getBindingResult().getObjectName());
 
         Map<String, Object> errorBody = new HashMap<>();

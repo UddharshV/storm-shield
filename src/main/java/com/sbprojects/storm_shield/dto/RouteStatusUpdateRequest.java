@@ -1,6 +1,9 @@
 package com.sbprojects.storm_shield.dto;
 
+import jakarta.validation.constraints.NotBlank;
+
 public class RouteStatusUpdateRequest {
+    @NotBlank(message = "Status must not be blank")
     private String status;
 
     public String getStatus() {

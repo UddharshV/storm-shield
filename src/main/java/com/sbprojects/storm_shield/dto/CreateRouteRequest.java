@@ -1,8 +1,12 @@
 package com.sbprojects.storm_shield.dto;
 
+import jakarta.validation.constraints.NotBlank;
+
 public class CreateRouteRequest {
 
+    @NotBlank(message = "Source city must not be blank")
     private String sourceCity;
+    @NotBlank(message = "Destination city must not be blank")
     private String destinationCity;
 
     // optional; will be ignored or used as a fallback

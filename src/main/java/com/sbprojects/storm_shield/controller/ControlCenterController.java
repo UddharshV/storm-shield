@@ -1,8 +1,10 @@
 package com.sbprojects.storm_shield.controller;
 
+import com.sbprojects.storm_shield.dto.CreateRouteRequest;
 import com.sbprojects.storm_shield.dto.RouteStatusUpdateRequest;
 import com.sbprojects.storm_shield.model.FreightRoute;
 import com.sbprojects.storm_shield.repository.FreightRouteRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -49,6 +51,24 @@ public class ControlCenterController {
         return analytics;
     }
 
+    @PostMapping
+    public ResponseEntity<FreightRoute> createRoute(@RequestBody CreateRouteRequest request) {
+        String status = request.getStatus();
+        if (status == null || status.isBlank()) {
+            status = "OPERATIONAL";
+        }
+
+        FreightRoute route = new FreightRoute(
+                request.getSourceCity(),
+                request.getDestinationCity(),
+                status
+        );
+
+        FreightRoute saved = routeRepository.save(route);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+    }
+
     @PatchMapping("/{id}/status")
     public ResponseEntity<FreightRoute> updateRouteStatus(
             @PathVariable Long id,
@@ -69,5 +89,15 @@ public class ControlCenterController {
 
         //4. Return the updated resource entity
         return ResponseEntity.ok(savedRoute);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteRoute(@PathVariable Long id) {
+        if (!routeRepository.existsById(id)) {
+            return ResponseEntity.notFound().build();
+        }
+
+        routeRepository.deleteById(id);
+        return ResponseEntity.noContent().build();
     }
 }

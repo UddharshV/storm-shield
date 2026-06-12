@@ -1,6 +1,7 @@
 package com.sbprojects.storm_shield;
 
 import com.sbprojects.storm_shield.controller.ControlCenterController;
+import com.sbprojects.storm_shield.dto.CreateRouteRequest;
 import com.sbprojects.storm_shield.dto.RouteStatusUpdateRequest;
 import com.sbprojects.storm_shield.model.FreightRoute;
 import com.sbprojects.storm_shield.repository.FreightRouteRepository;
@@ -195,5 +196,91 @@ public class ControlCenterControllerTest {
 
         verify(routeRepository, times(1)).findById(missingId);
         verify(routeRepository, never()).save(any());
+    }
+    //createRoute defaults status to OPERATIONAL
+    @Test
+    void createRoute_NoStatusProvided_DefaultsToOperational() {
+        // 1. Arrange
+        CreateRouteRequest request = new CreateRouteRequest();
+        request.setSourceCity("Memphis");
+        request.setDestinationCity("Dallas");
+        // no status set on purpose
+
+        FreightRoute saved = new FreightRoute("Memphis", "Dallas", "OPERATIONAL");
+        when(routeRepository.save(any(FreightRoute.class))).thenReturn(saved);
+
+        // 2. Act
+        ResponseEntity<FreightRoute> response = controller.createRoute(request);
+
+        // 3. Assert
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+        FreightRoute body = response.getBody();
+        assertNotNull(body);
+        assertEquals("OPERATIONAL", body.getStatus());
+        assertEquals("Memphis", body.getSourceCity());
+        assertEquals("Dallas", body.getDestinationCity());
+
+        // 4. Verify the route was persisted
+        verify(routeRepository, times(1)).save(any(FreightRoute.class));
+    }
+
+    //createRoute accepts explicit status
+    @Test
+    void createRoute_WithExplicitStatus_UsesProvidedStatus() {
+        // 1. Arrange
+        CreateRouteRequest request = new CreateRouteRequest();
+        request.setSourceCity("Raleigh");
+        request.setDestinationCity("Atlanta");
+        request.setStatus("DELAYED");
+
+        FreightRoute saved = new FreightRoute("Raleigh", "Atlanta", "DELAYED");
+        when(routeRepository.save(any(FreightRoute.class))).thenReturn(saved);
+
+        // 2. Act
+        ResponseEntity<FreightRoute> response = controller.createRoute(request);
+
+        // 3. Assert
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+        FreightRoute body = response.getBody();
+        assertNotNull(body);
+        assertEquals("DELAYED", body.getStatus());
+
+        verify(routeRepository, times(1)).save(any(FreightRoute.class));
+    }
+
+    //deleteRoute existing ID -> 204, delete called
+    @Test
+    void deleteRoute_ExistingRoute_DeletesAndReturnsNoContent() {
+        // 1. Arrange
+        Long routeId = 7L;
+        when(routeRepository.existsById(routeId)).thenReturn(true);
+
+        // 2. Act
+        ResponseEntity<Void> response = controller.deleteRoute(routeId);
+
+        // 3. Assert
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        assertNull(response.getBody());
+
+        verify(routeRepository, times(1)).existsById(routeId);
+        verify(routeRepository, times(1)).deleteById(routeId);
+    }
+
+    //deleteRoute missing ID → 404, no delete
+    @Test
+    void deleteRoute_NonExistingRoute_ReturnsNotFoundAndDoesNotDelete() {
+        // 1. Arrange
+        Long missingId = 90L;
+        when(routeRepository.existsById(missingId)).thenReturn(false);
+
+        // 2. Act
+        ResponseEntity<Void> response = controller.deleteRoute(missingId);
+
+        // 3. Assert
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertNull(response.getBody());
+
+        verify(routeRepository, times(1)).existsById(missingId);
+        verify(routeRepository, never()).deleteById(anyLong());
     }
 }
